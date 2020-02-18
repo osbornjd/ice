@@ -17,12 +17,13 @@ package org.eclipse.ice.commands;
  * An enum to determine what kind of move this is 
  * localRemote - local source, remote destination 
  * remoteLocal - remote source, local destination
- * remoteRemote - remote source, remote destination
+ * remoteRemote - remote source, remote destination on same host
+ * remoteRemoteJumpHost - remote source, remote destination on different remote hosts
  * 
  * @author Joe Osborn
  *
  */
 
 public enum HandleType {
-	localRemote, remoteLocal, remoteRemote;
+	localRemote, remoteLocal, remoteRemote, remoteRemoteJumpHost;
 }

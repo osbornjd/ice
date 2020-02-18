@@ -30,6 +30,7 @@ import org.eclipse.ice.commands.KeyPathConnectionAuthorizationHandler;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -315,6 +316,7 @@ public class ConnectionManagerTest {
 	 * @throws IOException 
 	 */
 	@Test
+	@Ignore // Ignore for now while waiting for a second dummy serve to come online
 	public void testForwardConnection() throws IOException {
 		
 		ConnectionManager manager = ConnectionManagerFactory.getConnectionManager();
@@ -349,7 +351,6 @@ public class ConnectionManagerTest {
 		secondConn.setAuthorization(intermauth);
 		secondConn.setName("executeConnection");
 		secondConn.deleteWorkingDirectory(false);
-		System.out.println("\n\n\n\nOpening forwarding connection");
 		// Try to open it
 		Connection forwardConnection = manager.openForwardingConnection(firstConnection, secondConn);
 

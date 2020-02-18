@@ -21,6 +21,10 @@ import java.nio.file.Paths;
 
 import org.apache.sshd.client.subsystem.sftp.SftpClient;
 import org.eclipse.ice.commands.CommandStatus;
+import org.eclipse.ice.commands.Connection;
+import org.eclipse.ice.commands.ConnectionAuthorizationHandler;
+import org.eclipse.ice.commands.ConnectionAuthorizationHandlerFactory;
+import org.eclipse.ice.commands.ConnectionConfiguration;
 import org.eclipse.ice.commands.ConnectionManager;
 import org.eclipse.ice.commands.ConnectionManagerFactory;
 import org.eclipse.ice.commands.HandleType;
@@ -80,6 +84,66 @@ public class RemoteMoveFileCommandTest {
 	}
 
 	/**
+	 * This function tests moving a file through a forwarded jump host connection,
+	 * where e.g. one is operating the Commands package on a host A and wants to
+	 * move a file between remote host B and remote host C through a forwarded port.
+	 * 
+	 * @throws Exception
+	 */
+	//@Test
+	public void testRemoteJumpHostMoveFileCommand() throws Exception {
+		// Get the connection manager for holding connection info
+		ConnectionManager manager = ConnectionManagerFactory.getConnectionManager();
+		
+		ConnectionConfiguration dummyhostConfig = handlerTest.getConnection().getConfiguration();
+		// Need to create a remote source on dummyhost
+		handlerTest.createRemoteSource();
+		source = handlerTest.getDestination();
+		// Just make the destination the /tmp/ directory
+		dest = "/tmp/";
+		
+		// First create the forwarding connection
+		ConnectionAuthorizationHandlerFactory authFactory = new ConnectionAuthorizationHandlerFactory();
+		// Request a ConnectionAuthorization of type text file which contains the
+		// credentials
+		String keyPath = System.getProperty("user.home") + "/.ssh/denisovankey";
+		ConnectionAuthorizationHandler auth = authFactory.getConnectionAuthorizationHandler("keypath",
+				keyPath);
+		auth.setHostname("denisovan");
+		auth.setUsername("4jo");
+		ConnectionConfiguration config = new ConnectionConfiguration();
+		config.setAuthorization(auth);
+		config.setName("forwardConnection");
+		Connection firstConnection = manager.openConnection(config);
+	
+		Connection forwardConnection = manager.openForwardingConnection(firstConnection, dummyhostConfig);
+
+		// Ensure forwarded connection was properly opened
+		assertTrue(manager.isConnectionOpen(forwardConnection.getConfiguration().getName()));
+		
+		// Configure the command to move the file
+		RemoteMoveFileCommand command = new RemoteMoveFileCommand();
+		command.setMoveType(HandleType.remoteRemoteJumpHost);
+		command.setConnection(forwardConnection);
+		command.setConfiguration(source, dest);
+		CommandStatus status = command.execute();
+		
+		// Check that the execution returned a success
+		assertEquals(CommandStatus.SUCCESS, status);
+		
+		String filename = source.substring(source.lastIndexOf("/") + 1);
+		// Also check that the file actually exists
+		assertTrue(remotePathExists(forwardConnection, dest + filename));
+		
+		// Clean up
+		handlerTest.deleteRemoteSource();
+		// Delete the 
+		SftpClient sftpChannel = forwardConnection.getSftpChannel();
+		sftpChannel.remove(dest + filename);
+		
+	}
+
+	/**
 	 * Test for moving a file only on the remote system
 	 */
 	@Test
@@ -103,7 +167,7 @@ public class RemoteMoveFileCommandTest {
 
 		// Assert that the command was actually successful and that command status
 		// wasn't inadvertently set to successful
-		assertTrue(remotePathExists());
+		assertTrue(remotePathExists(handlerTest.getConnection(), dest));
 
 		// Delete the temporary files that were created to test
 		// Don't need to delete the source since it was moved
@@ -177,7 +241,7 @@ public class RemoteMoveFileCommandTest {
 
 		// Assert that the command was actually successful and that command status
 		// wasn't inadvertently set to successful
-		assertTrue(remotePathExists());
+		assertTrue(remotePathExists(handlerTest.getConnection(), dest));
 
 		// Delete the temporary files that were created to test
 		handlerTest.deleteLocalSource();
@@ -191,13 +255,13 @@ public class RemoteMoveFileCommandTest {
 	 * @return
 	 * @throws Exception
 	 */
-	public boolean remotePathExists() throws Exception {
+	public boolean remotePathExists(Connection connection, String file) throws Exception {
 
 		// Connect the channel from the connection
-		SftpClient sftpChannel = handlerTest.getConnection().getSftpChannel();
+		SftpClient sftpChannel = connection.getSftpChannel();
 
 		try {
-			sftpChannel.lstat(dest);
+			sftpChannel.lstat(file);
 		} catch (IOException e) {
 			// If an exception is caught, this means the file was not there.
 			return false;

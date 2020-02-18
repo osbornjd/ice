@@ -576,7 +576,7 @@ public class RemoteFileHandlerTest {
 	}
 
 	/**
-	 * Recurisve function that deletes a remote directory and its contents
+	 * Recursive function that deletes a remote directory and its contents
 	 * 
 	 * @param sftpChannel
 	 * @param path
