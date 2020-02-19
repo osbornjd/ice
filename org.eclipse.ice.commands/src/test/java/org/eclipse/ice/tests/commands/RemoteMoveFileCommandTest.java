@@ -109,8 +109,8 @@ public class RemoteMoveFileCommandTest {
 		String keyPath = System.getProperty("user.home") + "/.ssh/denisovankey";
 		ConnectionAuthorizationHandler auth = authFactory.getConnectionAuthorizationHandler("keypath",
 				keyPath);
-		auth.setHostname("denisovan");
-		auth.setUsername("4jo");
+		auth.setHostname("hname");
+		auth.setUsername("uname");
 		ConnectionConfiguration config = new ConnectionConfiguration();
 		config.setAuthorization(auth);
 		config.setName("forwardConnection");

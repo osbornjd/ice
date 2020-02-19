@@ -38,6 +38,7 @@ import org.eclipse.ice.commands.ConnectionAuthorizationHandlerFactory;
 import org.eclipse.ice.commands.ConnectionConfiguration;
 import org.eclipse.ice.commands.ConnectionManager;
 import org.eclipse.ice.commands.ConnectionManagerFactory;
+import org.eclipse.ice.commands.HandleType;
 import org.eclipse.ice.commands.RemoteFileHandler;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -199,7 +200,7 @@ public class RemoteFileHandlerTest {
 
 		deleteLocalDestination();
 		deleteRemoteSource();
-	
+
 	}
 
 	/**
@@ -283,6 +284,66 @@ public class RemoteFileHandlerTest {
 		deleteRemoteDestination();
 		deleteRemoteSource();
 
+	}
+
+	/**
+	 * This function tests remote to remote file handling where the handle occurs
+	 * over a jump host, i.e. between two remote hosts
+	 * 
+	 * @throws Exception
+	 */
+	public void testRemoteJumpHostMove() throws Exception {
+		ConnectionManager manager = ConnectionManagerFactory.getConnectionManager();
+		
+		ConnectionConfiguration dummyhostConfig = fileTransferConn.getConfiguration();
+		
+		// Create a remote source on the dummy host
+		createRemoteSource();
+		
+		// Make the destination the /tmp directory on the other remote host
+		theDestination = "/tmp/";
+	
+
+		// First create the forwarding connection
+		ConnectionAuthorizationHandlerFactory authFactory = new ConnectionAuthorizationHandlerFactory();
+		// Request a ConnectionAuthorization of type text file which contains the
+		// credentials
+		String keyPath = System.getProperty("user.home") + "/.ssh/denisovankey";
+		ConnectionAuthorizationHandler auth = authFactory.getConnectionAuthorizationHandler("keypath",
+				keyPath);
+		auth.setHostname("host");
+		auth.setUsername("uname");
+		ConnectionConfiguration config = new ConnectionConfiguration();
+		config.setAuthorization(auth);
+		config.setName("forwardConnection");
+		Connection firstConnection = manager.openConnection(config);
+	
+		Connection forwardConnection = manager.openForwardingConnection(firstConnection, dummyhostConfig);
+
+		// Ensure forwarded connection was properly opened
+		assertTrue(manager.isConnectionOpen(forwardConnection.getConfiguration().getName()));
+				
+		// Make file handler instance
+		RemoteFileHandler handler = new RemoteFileHandler();
+		// Setup file handler configurations
+		handler.setConnectionConfiguration(config);
+		handler.setHandleType(HandleType.remoteRemoteJumpHost);
+		
+		// Execute move
+		CommandStatus status = handler.move(theSource, theDestination);
+		
+		// Check that it was successful
+		assertEquals(CommandStatus.SUCCESS, status);
+		
+		// Make sure the file transfer actually happened
+		String filename = theSource.substring(theSource.lastIndexOf("/")+1);
+		assertTrue(handler.exists(filename));
+		
+		// Clean up files
+		deleteRemoteSource();
+		
+		SftpClient sftpChannel = forwardConnection.getSftpChannel();
+		sftpChannel.remove(theDestination + filename);
 	}
 
 	/**
@@ -470,7 +531,7 @@ public class RemoteFileHandlerTest {
 		System.out.println("Moved source file to new remote source destination " + theSource);
 
 	}
-	
+
 	private void putFile(SftpClient client, String src, String dest) throws IOException {
 		if (dest.endsWith("/")) {
 			String separator = FileSystems.getDefault().getSeparator();
@@ -481,7 +542,7 @@ public class RemoteFileHandlerTest {
 		}
 		try (OutputStream dstStream = client.write(dest, OpenMode.Create, OpenMode.Write, OpenMode.Truncate)) {
 			try (InputStream srcStream = new FileInputStream(src)) {
-				byte[] buf = new byte[32*1024];
+				byte[] buf = new byte[32 * 1024];
 				while (srcStream.read(buf) > 0) {
 					dstStream.write(buf);
 				}
