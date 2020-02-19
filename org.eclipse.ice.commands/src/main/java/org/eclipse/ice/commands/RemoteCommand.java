@@ -50,8 +50,7 @@ public class RemoteCommand extends Command {
 	/**
 	 * An additional connection that is used for multi-hop connections, where a user
 	 * connects to an intermediary machine (with connection, above) and then uses
-	 * that machine to connect to a second machine. TODO - Implement multi-hop
-	 * connections with secondConnection
+	 * that machine to connect to a second machine.
 	 */
 	private AtomicReference<Connection> secondConnection = new AtomicReference<Connection>(new Connection());
 
@@ -129,7 +128,7 @@ public class RemoteCommand extends Command {
 			// too
 			ConnectionConfiguration secondConfig = secondConnection.get().getConfiguration();
 			if (secondConfig != null) {
-				secondConnection.set(manager.openForwardingConnection(connection.get(),secondConfig));
+				secondConnection.set(manager.openForwardingConnection(connection.get(), secondConfig));
 				// Set the commandConfig hostname to be the extra connection, since this is
 				// really where the job will run
 				commandConfig.setHostname(secondConnection.get().getConfiguration().getAuthorization().getHostname());
@@ -142,7 +141,7 @@ public class RemoteCommand extends Command {
 			logger.error("Returning info error", e);
 			return;
 		}
-		
+
 		return;
 	}
 
@@ -335,7 +334,7 @@ public class RemoteCommand extends Command {
 			completeCommands.add(completeCommand);
 		}
 
-		// Now loop over all commands and run them via JSch
+		// Now loop over all commands and run them via Mina
 		for (int i = 0; i < completeCommands.size(); i++) {
 			// Give the command to the channel connection
 			String thisCommand = completeCommands.get(i);
@@ -397,8 +396,8 @@ public class RemoteCommand extends Command {
 		 * transferring goes from (in the case of System A --> System B --> System C
 		 * where B is the jump host and C is the destination host):
 		 * 
-		 * System B --> System A - transfer the files to a local temp directory, System A
-		 * --> System C - transfer the files from the local temp directory through the
+		 * System B --> System A - transfer the files to a local temp directory, System
+		 * A --> System C - transfer the files from the local temp directory through the
 		 * forwarded connection
 		 */
 		// So first we will transfer from the jump host
@@ -415,8 +414,7 @@ public class RemoteCommand extends Command {
 			// Set the working directory to be the temporary local directory that
 			// was created, so that the rest of the command operates as normal
 			// from a local host to a remote host with this new temporary directory
-			status = transferFiles(secondConnection.get().getConfiguration(),
-					tempLocalDir.toString(),
+			status = transferFiles(secondConnection.get().getConfiguration(), tempLocalDir.toString(),
 					commandConfig.getRemoteWorkingDirectory());
 
 			// Delete the local temp file once finished moving to the destination host
@@ -443,8 +441,6 @@ public class RemoteCommand extends Command {
 		return status;
 	}
 
-
-	
 	/**
 	 * This function is responsible for transferring the files to the remote host.
 	 * It utilizes the file handling API in this package
@@ -454,22 +450,26 @@ public class RemoteCommand extends Command {
 	 * @throws JSchException
 	 * @throws IOException
 	 */
-	protected CommandStatus transferFiles(ConnectionConfiguration config, String sourceDir, String destDir) throws IOException {
+	protected CommandStatus transferFiles(ConnectionConfiguration config, String sourceDir, String destDir)
+			throws IOException {
 
 		String sourceSep = "/";
 		String destSep = "/";
 
 		// Figure out what the separators are, depending on windows/*nix
-		if(sourceDir.contains("\\"))
+		if (sourceDir.contains("\\"))
 			sourceSep = "\\";
-		if(destDir.contains("\\"))
+		if (destDir.contains("\\"))
 			destSep = "\\";
-		
+
 		// Set up a remote file handler to transfer the files
 		RemoteFileHandler handler = new RemoteFileHandler();
 		// Give the handler the same connection as this command
 		handler.setConnectionConfiguration(config);
 
+		logger.info("\n\n\n\n\n\n\n\n transferring with config : " + config.getName());
+		logger.info("That connection isOpen = " + ConnectionManagerFactory.getConnectionManager().isConnectionOpen(config.getName()));
+		
 		// Get the executable to concatenate
 		String shortExecName = commandConfig.getExecutable();
 		// Get the executable filename only by removing the all the junk in front of it
@@ -480,9 +480,9 @@ public class RemoteCommand extends Command {
 			shortExecName = shortExecName.substring(shortExecName.lastIndexOf("\\") + 1);
 
 		// Check that the source directory ends with the right separator
-		if(!sourceDir.endsWith(sourceSep))
+		if (!sourceDir.endsWith(sourceSep))
 			sourceDir += sourceSep;
-		
+
 		// Do the same for the destination
 		if (!destDir.endsWith(destSep))
 			destDir += destSep;
@@ -491,9 +491,8 @@ public class RemoteCommand extends Command {
 		String source = sourceDir + shortExecName;
 		String destination = destDir + shortExecName;
 
-		logger.info("Trying to transfer " + source + " to " + destination +
-				" over connection " + config.getName());
-		
+		logger.info("Trying to transfer " + source + " to " + destination + " over connection " + config.getName());
+
 		CommandStatus fileTransfer = null;
 		// Check if the source file exists. If the executable is a script, then it will
 		// transfer it to the host. If it is just a command (e.g. ls) then it will skip
@@ -529,7 +528,7 @@ public class RemoteCommand extends Command {
 
 			// Now have the full paths, so transfer the files per the logger messages
 			// Put the inputfile to the remote directory. Use a null object for receiving
-			// notifications about the progress of the transfer and use 0 to overwrite 
+			// notifications about the progress of the transfer and use 0 to overwrite
 			// the files if they exist there already
 			source = sourceDir + shortInputName;
 			destination = destDir + shortInputName;
@@ -595,7 +594,7 @@ public class RemoteCommand extends Command {
 		// Return whether or not the directory was deleted
 		return directory.delete();
 	}
-	
+
 	/**
 	 * Set a particular connection for a particular RemoteCommand
 	 * 
@@ -603,6 +602,25 @@ public class RemoteCommand extends Command {
 	 */
 	public void setConnection(Connection connection) {
 		this.connection = new AtomicReference<Connection>(connection);
+	}
+
+	/**
+	 * Set a particular forwarding connection for a jump host command
+	 * 
+	 * @param secondConnection - the connection for the jump host (forwarded
+	 *                         connection)
+	 */
+	public void setForwardConnection(Connection secondConnection) {
+		this.secondConnection = new AtomicReference<Connection>(secondConnection);
+	}
+
+	/**
+	 * Getter for forwarding connection for the jump host command
+	 * 
+	 * @return - {@link org.eclipse.ice.commands.RemoteCommand#secondConnection}
+	 */
+	public Connection getForwardConnection() {
+		return secondConnection.get();
 	}
 
 	/**

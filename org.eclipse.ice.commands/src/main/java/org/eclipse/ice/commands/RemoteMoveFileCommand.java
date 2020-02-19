@@ -81,7 +81,7 @@ public class RemoteMoveFileCommand extends RemoteCommand {
 		// Tell it that this is a move
 		transfer.isMove(true);
 		// Do the transfer
-		status = transfer.executeTransfer(getConnection(), source, destination, permissions, moveType);
+		status = transfer.executeTransfer(getConnection(), getForwardConnection(), source, destination, permissions, moveType);
 
 		return status;
 	}

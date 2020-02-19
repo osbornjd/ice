@@ -272,7 +272,6 @@ public class ConnectionManager {
 				+ intermediateConn.getConfiguration().getAuthorization().getUsername() + "@" +
 				  intermediateConn.getConfiguration().getAuthorization().getHostname());
 
-		
 		return forwardConnection;
 	}
 

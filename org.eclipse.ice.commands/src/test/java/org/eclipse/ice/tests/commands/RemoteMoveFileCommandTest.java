@@ -90,18 +90,18 @@ public class RemoteMoveFileCommandTest {
 	 * 
 	 * @throws Exception
 	 */
-	//@Test
+	@Test
 	public void testRemoteJumpHostMoveFileCommand() throws Exception {
 		// Get the connection manager for holding connection info
 		ConnectionManager manager = ConnectionManagerFactory.getConnectionManager();
 		
-		ConnectionConfiguration dummyhostConfig = handlerTest.getConnection().getConfiguration();
-		// Need to create a remote source on dummyhost
-		handlerTest.createRemoteSource();
-		source = handlerTest.getDestination();
+	// Need to create a remote source on other host
+		// For now just use a file that is already there
+		source = "/home/4jo/remoteCommandDirectory/someInputFile.txt";
+		
 		// Just make the destination the /tmp/ directory
 		dest = "/tmp/";
-		
+	
 		// First create the forwarding connection
 		ConnectionAuthorizationHandlerFactory authFactory = new ConnectionAuthorizationHandlerFactory();
 		// Request a ConnectionAuthorization of type text file which contains the
@@ -109,22 +109,41 @@ public class RemoteMoveFileCommandTest {
 		String keyPath = System.getProperty("user.home") + "/.ssh/denisovankey";
 		ConnectionAuthorizationHandler auth = authFactory.getConnectionAuthorizationHandler("keypath",
 				keyPath);
-		auth.setHostname("hname");
-		auth.setUsername("uname");
+		auth.setHostname("denisovan");
+		auth.setUsername("4jo");
 		ConnectionConfiguration config = new ConnectionConfiguration();
 		config.setAuthorization(auth);
-		config.setName("forwardConnection");
-		Connection firstConnection = manager.openConnection(config);
-	
-		Connection forwardConnection = manager.openForwardingConnection(firstConnection, dummyhostConfig);
+		config.setName("denisovanConnection");
+		
+		
+		
+		// Read in a dummy configuration file that contains credentials
+		String credFile = "/tmp/ice-remote-creds.txt";
+		if (System.getProperty("os.name").toLowerCase().contains("win"))
+			credFile = "C:\\Users\\Administrator\\ice-remote-creds.txt";
+		ConnectionAuthorizationHandler intermauth = authFactory.getConnectionAuthorizationHandler("text",
+				credFile);
+
+		// Setup the configuration
+		ConnectionConfiguration secondConn = new ConnectionConfiguration();
+		secondConn.setAuthorization(intermauth);
+		secondConn.setName("executeConnection");
+		secondConn.deleteWorkingDirectory(false);
+		
+		
+		
+		//Connection forwardConnection = manager.openForwardingConnection(otherConn, dummyhostConfig);
 
 		// Ensure forwarded connection was properly opened
-		assertTrue(manager.isConnectionOpen(forwardConnection.getConfiguration().getName()));
+		//assertTrue(manager.isConnectionOpen(forwardConnection.getConfiguration().getName()));
 		
+		System.out.println("\n\n\n\n\n Forwarded Connection is opened");
 		// Configure the command to move the file
 		RemoteMoveFileCommand command = new RemoteMoveFileCommand();
+		command.setConnectionConfiguration(config);
+		command.setForwardConnection(manager.openConnection(secondConn));
+		command.openAndSetConnection();
 		command.setMoveType(HandleType.remoteRemoteJumpHost);
-		command.setConnection(forwardConnection);
 		command.setConfiguration(source, dest);
 		CommandStatus status = command.execute();
 		
@@ -133,13 +152,13 @@ public class RemoteMoveFileCommandTest {
 		
 		String filename = source.substring(source.lastIndexOf("/") + 1);
 		// Also check that the file actually exists
-		assertTrue(remotePathExists(forwardConnection, dest + filename));
+		//assertTrue(remotePathExists(forwardConnection, dest + filename));
 		
 		// Clean up
-		handlerTest.deleteRemoteSource();
-		// Delete the 
-		SftpClient sftpChannel = forwardConnection.getSftpChannel();
-		sftpChannel.remove(dest + filename);
+		//handlerTest.deleteRemoteSource();
+		// Delete the moved file
+		//SftpClient sftpChannel = forwardConnection.getSftpChannel();
+		//sftpChannel.remove(dest + filename);
 		
 	}
 

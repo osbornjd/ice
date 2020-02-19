@@ -155,7 +155,7 @@ public class CommandFactoryTest {
 	 * remote host and then executes on a different remote host. 
 	 */
 	@Test
-	@Ignore // Ignore for now while waiting for a second dummy serve to come online
+	//@Ignore // Ignore for now while waiting for a second dummy serve to come online
 	public void testMultiHopRemoteCommand() {
 		System.out.println("\n\n\nTesting a multi-hop remote command");
 		// Set the CommandConfiguration class
@@ -180,11 +180,11 @@ public class CommandFactoryTest {
 		ConnectionAuthorizationHandlerFactory authFactory = new ConnectionAuthorizationHandlerFactory();
 		// Request a ConnectionAuthorization of type text file which contains the
 		// credentials
-		String keyPath = System.getProperty("user.home") + "/.ssh/somekey";
+		String keyPath = System.getProperty("user.home") + "/.ssh/denisovankey";
 		ConnectionAuthorizationHandler auth = authFactory.getConnectionAuthorizationHandler("keypath",
 				keyPath);
-		auth.setHostname("hostname");
-		auth.setUsername("password");
+		auth.setHostname("denisovan");
+		auth.setUsername("4jo");
 		// Set it
 		ConnectionConfiguration firstConn = new ConnectionConfiguration();
 		firstConn.setAuthorization(auth);

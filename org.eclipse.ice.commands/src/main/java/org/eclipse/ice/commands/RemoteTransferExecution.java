@@ -13,6 +13,7 @@
 
 package org.eclipse.ice.commands;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,6 +25,7 @@ import java.nio.file.Path;
 import org.apache.sshd.client.subsystem.sftp.SftpClient;
 import org.apache.sshd.client.subsystem.sftp.SftpClient.Attributes;
 import org.apache.sshd.client.subsystem.sftp.SftpClient.OpenMode;
+import org.apache.sshd.client.subsystem.sftp.SftpClientFactory;
 import org.apache.sshd.common.subsystem.sftp.SftpConstants;
 import org.apache.sshd.common.subsystem.sftp.SftpException;
 import org.slf4j.Logger;
@@ -72,8 +74,8 @@ public class RemoteTransferExecution {
 	 * @param transferType - the HandleType indicating what kind of transfer it is
 	 * @return - CommandStatus indicating whether or not the transfer was successful
 	 */
-	protected CommandStatus executeTransfer(Connection connection, String source, String destination, int permissions,
-			HandleType transferType) {
+	protected CommandStatus executeTransfer(Connection connection, Connection forwardConnection, String source,
+			String destination, int permissions, HandleType transferType) {
 		try {
 			// Determine how to proceed given what kind of copy it is
 			if (transferType == HandleType.localRemote) {
@@ -82,6 +84,8 @@ public class RemoteTransferExecution {
 				transferRemoteToLocal(connection, source, destination);
 			} else if (transferType == HandleType.remoteRemote) {
 				transferRemoteToRemote(connection, source, destination);
+			} else if (transferType == HandleType.remoteRemoteJumpHost) {
+				transferRemoteToJumpRemote(connection, forwardConnection, source, destination);
 			} else {
 				logger.info("Unknown handle type...");
 				status = CommandStatus.FAILED;
@@ -105,6 +109,60 @@ public class RemoteTransferExecution {
 		// Set the status to success and return
 		status = CommandStatus.SUCCESS;
 		return status;
+	}
+
+	/**
+	 * This function executes a transfer command on the remote host to copy a file
+	 * from one remote host to a different remote host. It operates through the
+	 * forwarded connection port on the local host and transfers the file to the
+	 * local host, then to the other remote host since it is assumed that only the
+	 * local host has appropriate ssh access credentials to each remote host.
+	 * 
+	 * @param connection  - connection over which to transfer
+	 * @param source      - source file to transfer
+	 * @param destination - destination to move it to
+	 * @throws IOException
+	 */
+	private void transferRemoteToJumpRemote(Connection connection, Connection forwardConnection, String source, String destination)
+			throws IOException {
+		// Create a temporary local directory to copy to
+		Path tempLocalDir = Files.createTempDirectory("tempJumpTransferDir");
+		String separator = "/";
+		if(tempLocalDir.toString().contains("\\"))
+			separator = "\\";
+		
+		String filename = source.substring(source.lastIndexOf("/") + 1);
+		// Transfer remote to local over the first connection to the temporary local directory
+		System.out.println("\n\n\n\n\n trying to transfer over connection " + connection.getConfiguration().getName());
+		System.out.println("transferring " + source + " to " + tempLocalDir.toString());
+		
+		SftpClientFactory factory = SftpClientFactory.instance();
+		connection.setSftpChannel(factory.createSftpClient(connection.getSession()));
+		transferRemoteToLocal(connection, source, tempLocalDir.toString());
+		
+		String newSource = tempLocalDir.toString() + separator + filename;
+		System.out.println("\n\n\n\n\n trying to transfer over forward connection " + forwardConnection.getConfiguration().getName());
+		System.out.println("transferring " + newSource + " to " + destination);
+		System.out.println("connection is " + ConnectionManagerFactory.getConnectionManager().isConnectionOpen(forwardConnection.getConfiguration().getName()));
+		SftpClient client = forwardConnection.getSftpChannel();
+		System.out.println(forwardConnection.getConfiguration().getAuthorization().getHostname());
+		try (OutputStream dstStream = client.write(destination, OpenMode.Create, OpenMode.Write, OpenMode.Truncate)) {
+			try (InputStream srcStream = new FileInputStream(newSource)) {
+				byte[] buf = new byte[32 * 1024];
+				while (srcStream.read(buf) > 0) {
+					dstStream.write(buf);
+				}
+			}
+		}
+		
+		// Clean up the local temporary directory that was created
+		
+		File tempLocalFile = new File(tempLocalDir.toString());
+		boolean delete = deleteLocalDirectory(tempLocalFile);
+		if(!delete) {
+			logger.warn("Temporary directory at " + tempLocalDir.toString() + " not successfully deleted.");
+		}
+		
 	}
 
 	/**
@@ -142,20 +200,24 @@ public class RemoteTransferExecution {
 	 */
 	private void transferLocalToRemote(Connection connection, String source, String destination) throws IOException {
 		SftpClient client = connection.getSftpChannel();
+
 		try {
 			if (client.stat(destination).isDirectory()) {
+				logger.info("stat");
 				Path path = FileSystems.getDefault().getPath(source);
 				String sep = "";
 				if (!destination.endsWith("/")) {
 					sep = "/";
 				}
 				destination += sep + path.getFileName();
+				logger.info("Set up paths");
 			}
 		} catch (SftpException e) {
 			if (!(e.getStatus() == SftpConstants.SSH_FX_NO_SUCH_FILE)) {
 				throw e;
 			}
 		}
+
 		try (OutputStream dstStream = client.write(destination, OpenMode.Create, OpenMode.Write, OpenMode.Truncate)) {
 			try (InputStream srcStream = new FileInputStream(source)) {
 				byte[] buf = new byte[32 * 1024];
@@ -164,6 +226,7 @@ public class RemoteTransferExecution {
 				}
 			}
 		}
+
 	}
 
 	/**
@@ -177,11 +240,14 @@ public class RemoteTransferExecution {
 	 * @throws IOException
 	 */
 	private void transferRemoteToLocal(Connection connection, String source, String destination) throws IOException {
+	
 		Path dstPath = FileSystems.getDefault().getPath(destination);
+		
 		if (dstPath.toFile().isDirectory()) {
 			String[] tokens = source.split("/");
 			dstPath = dstPath.resolve(tokens[tokens.length - 1]);
 		}
+		
 		try (OutputStream dstStream = Files.newOutputStream(dstPath)) {
 			try (InputStream srcStream = connection.getSftpChannel().read(source, OpenMode.Read)) {
 				byte[] buf = new byte[32 * 1024];
@@ -192,6 +258,24 @@ public class RemoteTransferExecution {
 		}
 	}
 
+	/**
+	 * A simple test method to recursively delete temporary files/directories
+	 * created in this test class
+	 * 
+	 * @param directory - top level directory from which to delete everything
+	 *                  underneath
+	 * @return - boolean - true if everything deleted, false if not
+	 */
+	private boolean deleteLocalDirectory(File directory) {
+		File[] contents = directory.listFiles();
+		if (contents != null) {
+			for (File file : contents) {
+				deleteLocalDirectory(file);
+			}
+		}
+		return directory.delete();
+	}
+	
 	/**
 	 * Setter function to tell the class whether or not the transfer is a move or a
 	 * copy

@@ -316,7 +316,7 @@ public class ConnectionManagerTest {
 	 * @throws IOException 
 	 */
 	@Test
-	@Ignore // Ignore for now while waiting for a second dummy serve to come online
+	//@Ignore // Ignore for now while waiting for a second dummy serve to come online
 	public void testForwardConnection() throws IOException {
 		
 		ConnectionManager manager = ConnectionManagerFactory.getConnectionManager();
@@ -329,11 +329,12 @@ public class ConnectionManagerTest {
 		ConnectionAuthorizationHandlerFactory authFactory = new ConnectionAuthorizationHandlerFactory();
 		// Request a ConnectionAuthorization of type text file which contains the
 		// credentials
-		String keyPath = System.getProperty("user.home") + "/.ssh/somekey";
+		String keyPath = System.getProperty("user.home") + "/.ssh/denisovankey";
 		ConnectionAuthorizationHandler auth = authFactory.getConnectionAuthorizationHandler("keypath",
 				keyPath);
-		auth.setHostname("hostname");
-		auth.setUsername("password");
+		auth.setHostname("denisovan");
+		auth.setUsername("4jo");
+		
 		ConnectionConfiguration config = new ConnectionConfiguration();
 		config.setAuthorization(auth);
 		config.setName("forwardConnection");
